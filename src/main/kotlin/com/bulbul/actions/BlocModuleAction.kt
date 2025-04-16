@@ -13,6 +13,10 @@ import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFileManager
 import java.io.File
+import com.intellij.psi.PsiManager
+import com.intellij.psi.PsiFile
+import com.intellij.codeInsight.actions.ReformatCodeProcessor
+import com.intellij.openapi.vfs.VirtualFile
 
 class BlocModuleAction : AnAction() {
     override fun actionPerformed(e: AnActionEvent) {
@@ -39,18 +43,41 @@ class BlocModuleAction : AnAction() {
 
         val basePath = "$targetPath/${moduleName.lowercase()}"
         val blocDir = "$basePath/bloc"
+        val cubitDir = "$basePath/cubit"
         val viewDir = "$basePath/view"
         var importsDir =
             "import '$targetPath/${moduleName.lowercase()}/view/${moduleName.lowercase()}_page.dart';"
         importsDir = "import '../${importsDir.split("lib/").last()}"
 
-        File(blocDir).mkdirs()
+        if (isCubit) {
+            File(cubitDir).mkdirs()
+        } else {
+            File(blocDir).mkdirs()
+        }
         File(viewDir).mkdirs()
 
         // Bloc or Cubit files
         if (isCubit) {
-            File("$blocDir/${moduleName.lowercase()}_cubit.dart").writeText("class ${capitalized}Cubit {}")
-            File("$blocDir/${moduleName.lowercase()}_state.dart").writeText("abstract class ${capitalized}State {}")
+            File("$cubitDir/${moduleName.lowercase()}_cubit.dart").writeText(
+                "import 'package:flutter_bloc/flutter_bloc.dart';\n" +
+                        "\n" +
+                        "import '${lowerCase}_state.dart';\n" +
+                        "\n" +
+                        "class ${capitalized}Cubit extends Cubit<${capitalized}State> {\n" +
+                        "  ${capitalized}Cubit() : super(${capitalized}State().init());\n" +
+                        "}"
+            )
+            File("$cubitDir/${moduleName.lowercase()}_state.dart").writeText(
+                "class ${capitalized}State {\n" +
+                        "  ${capitalized}State init() {\n" +
+                        "    return ${capitalized}State();\n" +
+                        "  }\n" +
+                        "\n" +
+                        "  ${capitalized}State copyWith() {\n" +
+                        "    return ${capitalized}State();\n" +
+                        "  }\n" +
+                        "}"
+            )
         } else {
             File("$blocDir/${moduleName.lowercase()}_bloc.dart").writeText(
                 "import 'package:flutter_bloc/flutter_bloc.dart';\n" +
@@ -87,8 +114,39 @@ class BlocModuleAction : AnAction() {
         }
 
         // View
-        File("$viewDir/${moduleName.lowercase()}_page.dart").writeText(
-            """
+        if (isCubit) {
+            File("$viewDir/${moduleName.lowercase()}_page.dart").writeText(
+                "import 'package:flutter/material.dart';\n" +
+                        "import 'package:flutter_bloc/flutter_bloc.dart';\n" +
+                        "\n" +
+                        "import '../cubit/${lowerCase}_cubit.dart';\n" +
+                        "import '../cubit/${lowerCase}_state.dart';\n" +
+                        "\n" +
+                        "class ${capitalized}Page extends StatelessWidget {\n" +
+                        "  const ${capitalized}Page({super.key});\n" +
+                        "\n" +
+                        "  @override\n" +
+                        "  Widget build(BuildContext context) {\n" +
+                        "    return BlocProvider(\n" +
+                        "      create: (BuildContext context) => ${capitalized}Cubit(),\n" +
+                        "      child: BlocBuilder<${capitalized}Cubit,${capitalized}State>(\n" +
+                        "        builder: (context, state) {\n" +
+                        "          return _buildPage(context);\n" +
+                        "        },\n" +
+                        "      ),\n" +
+                        "    );\n" +
+                        "  }\n" +
+                        "\n" +
+                        "  Widget _buildPage(BuildContext context) {\n" +
+                        "    final cubit = BlocProvider.of<${capitalized}Cubit>(context);\n" +
+                        "\n" +
+                        "    return Container();\n" +
+                        "  }\n" +
+                        "}"
+            )
+        } else {
+            File("$viewDir/${moduleName.lowercase()}_page.dart").writeText(
+                """
         import 'package:flutter/material.dart';
         import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -117,7 +175,8 @@ class BlocModuleAction : AnAction() {
             }
         }
         """.trimIndent()
-        )
+            )
+        }
 
         if (isRoute) {
             updateRoutes(project, moduleName, capitalized, importsDir)
@@ -126,6 +185,8 @@ class BlocModuleAction : AnAction() {
         ApplicationManager.getApplication().invokeLater {
             VirtualFileManager.getInstance().asyncRefresh(null)
         }
+
+
 
         Messages.showInfoMessage("Generated $capitalized module at: $basePath", "Success")
     }
@@ -195,6 +256,19 @@ class BlocModuleAction : AnAction() {
 
         // Refresh to show updated files in project view
         VirtualFileManager.getInstance().asyncRefresh(null)
+        if (routeVirtualFile != null) {
+            reformatFile(project, routeVirtualFile)
+        }
+        if (pagesVirtualFile != null) {
+            reformatFile(project, pagesVirtualFile)
+        }
+    }
+
+    private fun reformatFile(project: Project, virtualFile: VirtualFile) {
+        val psiFile: PsiFile? = PsiManager.getInstance(project).findFile(virtualFile)
+        psiFile?.let {
+            ReformatCodeProcessor(project, it, null, false).run()
+        }
     }
 
 }
