@@ -1,11 +1,12 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
     <!-- Unique identifier of the plugin. It should be FQN. It cannot be changed between the plugin versions. -->
-    <id>com.example.flutter_bloc_temp</id>
+    <id>dev.bulbul.flutter_bloc_generator</id>
+
 
     <!-- Public plugin name should be written in Title Case.
          Guidelines: https://plugins.jetbrains.com/docs/marketplace/plugin-overview-page.html#plugin-name -->
-    <name>Flutter_bloc_temp</name>
+    <name>Flutter Bloc Temp</name>
 
     <!-- A displayed Vendor name or Organization ID displayed on the Plugins Page. -->
     <vendor email="bulbulahmed.cse.44@gmail.com" url="https://bulbulahmed-cse.github.io/#/">Bulbul</vendor>
