@@ -4,9 +4,13 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.application.ApplicationManager
+import com.intellij.openapi.command.WriteCommandAction
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptorFactory
+import com.intellij.openapi.fileEditor.FileDocumentManager
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
+import com.intellij.openapi.vfs.LocalFileSystem
 import com.intellij.openapi.vfs.VirtualFileManager
 import java.io.File
 
@@ -29,12 +33,16 @@ class BlocModuleAction : AnAction() {
 
         val moduleName = dialog.getModuleName()
         val isCubit = dialog.isCubit()
-        val capitalized = moduleName.replaceFirstChar { it.uppercaseChar() }
+        val isRoute = dialog.isRoute()
+        val capitalized = toPascalCase(moduleName.replaceFirstChar { it.uppercaseChar() })
         val lowerCase = moduleName.lowercase()
 
         val basePath = "$targetPath/${moduleName.lowercase()}"
         val blocDir = "$basePath/bloc"
         val viewDir = "$basePath/view"
+        var importsDir =
+            "import '$targetPath/${moduleName.lowercase()}/view/${moduleName.lowercase()}_page.dart';"
+        importsDir = "import '../${importsDir.split("lib/").last()}"
 
         File(blocDir).mkdirs()
         File(viewDir).mkdirs()
@@ -111,11 +119,82 @@ class BlocModuleAction : AnAction() {
         """.trimIndent()
         )
 
+        if (isRoute) {
+            updateRoutes(project, moduleName, capitalized, importsDir)
+        }
+
         ApplicationManager.getApplication().invokeLater {
             VirtualFileManager.getInstance().asyncRefresh(null)
         }
 
         Messages.showInfoMessage("Generated $capitalized module at: $basePath", "Success")
+    }
+
+    private fun toPascalCase(input: String): String {
+        return input.split('_')
+            .joinToString("") { it.replaceFirstChar { c -> c.uppercaseChar() } }
+    }
+
+    private fun updateRoutes(
+        project: Project,
+        moduleName: String,
+        capital: String,
+        importsDir: String
+    ) {
+        val routeFile = File(project.basePath, "lib/routes/app_routes.dart")
+        val pagesFile = File(project.basePath, "lib/routes/route_helper.dart")
+
+        val routeVirtualFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(routeFile)
+        val pagesVirtualFile = LocalFileSystem.getInstance().refreshAndFindFileByIoFile(pagesFile)
+
+        routeVirtualFile?.let { file ->
+            WriteCommandAction.runWriteCommandAction(project) {
+                val document = FileDocumentManager.getInstance().getDocument(file)
+                document?.let {
+                    val content = it.text
+                    if (!content.contains("'$moduleName':")) {
+                        val newLine =
+                            "static const ${moduleName.uppercase()} = '/${moduleName}';\n// @blocgen-routes"
+                        val updated = content.replace("// @blocgen-routes", newLine)
+                        it.setText(updated)
+                    }
+                }
+            }
+        }
+
+        pagesVirtualFile?.let { file ->
+            WriteCommandAction.runWriteCommandAction(project) {
+                val document = FileDocumentManager.getInstance().getDocument(file)
+                document?.let {
+                    val content = it.text
+                    if (!content.contains(importsDir)) {
+                        val newLine = "$importsDir\n// @blocgen-imports"
+                        val updated = content.replace("// @blocgen-imports", newLine)
+                        val newCode = """
+                            GoRoute(
+                                path: Routes.${moduleName.uppercase()},
+                                name: Routes.${moduleName.uppercase()},
+                                pageBuilder: (context, state) {
+                                    return RouteTransition.fadeTransition(
+                                        state: state,
+                                        context: context,
+                                        child: const ${capital}Page(),
+                                    );
+                                },
+                            ),
+                            
+                            // @blocgen-code
+                        """.trimIndent()
+                        val updatedCode = updated.replace("// @blocgen-code", newCode)
+                        it.setText(updatedCode)
+                    }
+
+                }
+            }
+        }
+
+        // Refresh to show updated files in project view
+        VirtualFileManager.getInstance().asyncRefresh(null)
     }
 
 }

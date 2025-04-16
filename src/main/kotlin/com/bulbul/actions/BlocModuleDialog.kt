@@ -7,6 +7,7 @@ import javax.swing.*
 class BlocModuleDialog : DialogWrapper(true) {
     val nameField = JTextField()
     val useCubitCheckbox = JCheckBox("Use Cubit instead of BLoC")
+    val useRouteCheckbox = JCheckBox("Use Route instead of Navigator")
 
     init {
         init()
@@ -26,10 +27,12 @@ class BlocModuleDialog : DialogWrapper(true) {
         panel.add(namePanel)
         panel.add(Box.createVerticalStrut(10))
         panel.add(useCubitCheckbox)
+        panel.add(useRouteCheckbox)
 
         return panel
     }
 
     fun getModuleName(): String = nameField.text.trim()
     fun isCubit(): Boolean = useCubitCheckbox.isSelected
+    fun isRoute(): Boolean = useRouteCheckbox.isSelected
 }
