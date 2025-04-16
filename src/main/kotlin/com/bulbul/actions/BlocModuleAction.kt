@@ -95,8 +95,7 @@ class BlocModuleAction : AnAction() {
             Widget build(BuildContext context) {
                 return BlocProvider(
                    create: (BuildContext context) => ${capitalized}Bloc()..add(InitEvent()),
-                   child: BlocBuilder(
-                        bloc: BlocProvider.of<${capitalized}Bloc>(context),
+                   child: BlocBuilder<${capitalized}Bloc, ${capitalized}State>(
                         builder: (context, state) {
                             return _buildPage(context);
                         },
